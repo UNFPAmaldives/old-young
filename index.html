@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<head>
+<title>Older and Younger than You</title>
+<link rel="stylesheet" href="style/style.css" type="text/css" media="screen"/>
+<link rel="stylesheet" type="text/css" href="//cloud.typography.com/7626174/696048/css/fonts.css"/>
+<link href='https://fonts.googleapis.com/css?family=Inconsolata' rel='stylesheet' type='text/css'>
+<meta charset="utf-8">
+</head>
+<body>
+<div id="main-wrapper">
+<h1>Who is Older and Younger Given Your Age</h1>
+<div id="buttons">
+<div class="button current" data-val="all">Everyone</div>
+<div class="button" data-val="female">Female</div>
+<div class="button" data-val="male" style="margin-right:0">Male</div>
+<div class="clr"></div>
+</div>
+<div id="chart"></div>
+</div> 
+<script src="js/d3-3-5-5.min.js"></script>
+<script>
+
+var USER_SEX = 'all';
+var bisectAge = d3.bisector(function(d) { return d.age; }).left;
+
+var margin = {top: 20, right: 40, bottom: 50, left: 70},
+    width = 720 - margin.left - margin.right,
+	height = 600 - margin.top - margin.bottom,
+	barWidth = Math.floor(width / 32) - .5;
+
+var x = d3.scale.linear()
+    .range([0, width])
+	.domain([0, 96]);
+	
+var y = d3.scale.linear()
+    .range([height, 0])
+	.domain([-104, 100]);
+	
+var xAxis = d3.svg.axis()
+    .scale(x)
+	.tickSize(10)
+    .orient("bottom");
+	
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("right")
+	.tickFormat(function(d) { 
+		if (d < 0) {
+			return -d + "%"
+		} else {
+			return d + "%"
+		}
+	})
+	.tickSize(width+4)
+	.tickPadding(4);
+
+var area_older = d3.svg.area()
+    .x(function(d) { return x(d.age); })
+    .y0(y(0))
+    .y1(function(d) { return y(d["older_"+USER_SEX]); });
+var area_younger = d3.svg.area()
+    .x(function(d) { return x(d.age); })
+    .y0(y(0))
+    .y1(function(d) { return y(-d["younger_"+USER_SEX]); });
+
+
+var svg = d3.select("#chart").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+d3.tsv("data/old_young.tsv", type, function(error, data) {
+	if (error) throw error;
+	
+	// Axes
+	svg.append("g")
+    	.attr("class", "x axis")
+    	.attr("transform", "translate(0," + height + ")")
+    	.call(xAxis)
+	  .append("text")
+		.attr("y", 44)
+		.attr("dx", -2)
+		.style("text-anchor", "start")
+		.text("YEARS OLD");
+
+  	svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis);
+	svg.selectAll(".y.axis line").attr("x1", -16);
+	svg.selectAll(".y.axis text").attr("x", -45);
+	svg.select(".y.axis").append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", -margin.left)
+	  .attr("dx", "4")
+      .attr("dy", "1em")
+      .style("text-anchor", "end")
+      .text("OLDER");
+	svg.select(".y.axis").append("text")
+      .attr("transform", "rotate(-90)")
+	  .attr("x", -height+49)
+      .attr("y", -margin.left)
+	  .attr("dx", "4")
+      .attr("dy", "1em")
+      .style("text-anchor", "end")
+      .text("YOUNGER");
+	
+	// Older and younger areas
+	svg.append("path")
+    	.datum(data)
+		.attr("id", "older")
+  		.attr("class", "area")
+  		.attr("d", area_older);
+	svg.append("path")
+    	.datum(data)
+		.attr("id", "younger")
+  		.attr("class", "area")
+  		.attr("d", area_younger);
+	
+	// Controls
+	d3.selectAll(".button").on("click", function() {
+		USER_SEX = d3.select(this).attr("data-val");
+		d3.select(".current").classed("current", false);
+		d3.select(this).classed("current", true);
+		update();
+	});
+	
+	
+	// Baseline
+	svg.append("g")
+		.attr("class", "baseline")
+		.attr("transform", "translate(0,"+ y(0) +")")
+	  .append("line")
+		.attr("x1", -16)
+		.attr("x2", width+7)
+		.attr("y2", 0);
+
+
+	// Labels
+	var cat_labels = svg.append("g")
+		.attr("class", "catlabel");
+	cat_labels.append("text")
+		.attr("x", x(17.5))
+		.attr("y", y(34))
+		.text("Older");
+	cat_labels.append("text")
+		.attr("x", x(75))
+		.attr("y", y(-45))
+		.text("Younger");
+
+	// Update function for button click
+	function update() {
+		svg.select("#older")
+			.transition()
+			.duration(1000)
+			.attr("d", function(d) {
+				return area_older(data);
+			});
+		svg.select("#younger")
+			.transition()
+			.duration(1000)
+			.attr("d", function(d) {
+				return area_younger(data);
+			});
+	}
+
+
+//
+// Show values on mouseover
+//
+
+var focus = svg.append("g")
+	.attr("class", "focus")
+	.style("display", "none");
+focus.append("circle")
+	.attr("class", "older_marker")
+	.attr("r", 5);
+focus.append("circle")
+	.attr("class", "younger_marker")
+	.attr("r", 5);
+focus.append("text")
+	.attr("class", "older_value")
+	.attr("x", 9)
+	.attr("dy", ".33em");
+focus.append("text")
+	.attr("class", "younger_value")
+	.attr("x", 9)
+	.attr("dy", ".33em");
+
+focus.append("line")
+	.attr("x1", 0)
+	.attr("x2", 0)
+	.attr("y1", height);
+focus.append("text")
+	.attr("class", "agevalue")
+	.attr("text-anchor", "middle")
+	.attr("y", height);
+	
+
+// Events	
+svg.append("rect")
+	.attr("class", "overlay")
+	.attr("width", width)
+	.attr("height", height)
+	.on("mouseover", function() { 
+		focus.style("display", null); 
+	})
+	.on("mouseout", function() { 
+		focus.style("display", "none"); 
+	})
+	.on("mousemove", mousemove);
+	
+	
+	
+	function mousemove() {
+		// var key = USER_DEMO + USER_SEX;
+		// var key_index = fields.indexOf(key);
+		
+		var x0 = x.invert(d3.mouse(this)[0]),
+			i = bisectAge(data, x0, 1),
+			d0 = data[i - 1],
+			d1 = data[i],
+			d = x0 - d0.age > d1.age - x0 ? d1 : d0;
+		focus.attr("transform", "translate(" + x(d.age) + "," + y(d["older_"+USER_SEX]) + ")");
+		focus.select("text.older_value").text(d["older_"+USER_SEX]+"%");
+		
+	
+		// Adjust label horizontal positions.
+		// if (x0 > 70) {
+		// 	focus.select("text.value").attr("x", -30);
+		// } else {
+		// 	focus.select("text.value").attr("x", 10);
+		// }
+	
+		// Adjust indicator line and values.
+		focus.select("line")
+			.attr("y1", y(-d["younger_"+USER_SEX]) - y(d["older_"+USER_SEX]));
+		focus.select(".younger_marker")
+			.attr("cy", y(-d["younger_"+USER_SEX]) - y(d["older_"+USER_SEX]) );
+		focus.select("text.younger_value")
+			.attr("y", y(-d["younger_"+USER_SEX]) - y(d["older_"+USER_SEX]))
+			.text(d["younger_"+USER_SEX]+"%");
+		focus.select("text.agevalue")
+			.attr("y", y(-100)-y(d["older_"+USER_SEX])+33.5)
+			.text(d.age);
+			
+			
+		
+		// focus.select("text.agevalue")
+		// 	.attr("y", height-y(d.pct)+xAxis.tickPadding()+16)
+		// 	.text(function() {
+		// 		if (d.age == 85) {
+		// 			return ">" + d.age;
+		// 		} else {
+		// 			return d.age;
+		// 		}
+		// 	});
+	
+	} // @end mousemove()
+
+
+
+
+
+
+
+});
+
+
+function wrap(text, width) {
+  text.each(function() {
+    var text = d3.select(this),
+        words = text.text().split(/\s+/).reverse(),
+        word,
+        line = [],
+        lineNumber = 0,
+        lineHeight = 1.2, // ems
+        y = text.attr("y"),
+        dy = parseFloat(text.attr("dy")),
+        tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+    while (word = words.pop()) {
+      line.push(word);
+      tspan.text(line.join(" "));
+      if (tspan.node().getComputedTextLength() > width) {
+        line.pop();
+        tspan.text(line.join(" "));
+        line = [word];
+		tspan = text.append("tspan").attr("x", 0).attr("y", y).attr("dy", lineHeight + dy + "em").text(word);
+        // tspan = text.append("tspan").attr("x", 0).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+      }
+    }
+  });
+}
+
+
+
+function type(d, i) {
+	
+	d3.keys(d).map(function(key) {
+		d[key] = +d[key];
+	});
+	return d;
+
+}
+</script>
+</body>
